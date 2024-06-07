@@ -53,7 +53,8 @@ const result =await usersCollection.updateOne(query, updateDoc, options)
 res.send(result)
 })
 
-// get all users dat
+// get all users 
+
 app.get('/users', async(req,res)=>{
     const result = await usersCollection.find().toArray()
     res.send(result)
