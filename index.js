@@ -31,14 +31,15 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
  const usersCollection = client.db('BloodBridge').collection('users')
+ const donationCollection = client.db('BloodBridge').collection('donation')
 
 // save a user data in 
 app.put('/user', async(req, res) =>{
 const user =req.body
 
 
-const isExist = await usersCollection.findOne({email: email?.user})
-if(isExist) return res.send(isExist)
+// const isExist = await usersCollection.findOne({email: email?.user})
+// if(isExist) return res.send(isExist)
 
 
 const options ={upsert:true}
@@ -60,6 +61,13 @@ app.get('/users', async(req,res)=>{
     res.send(result)
 })
 
+
+// save a donation request
+app.post ('/add-donation',async(req,res )=>{
+    const donationData =req.body
+    const result =await donationCollection.insertOne(donationData)
+    res.send(result)
+})
 
 
 
