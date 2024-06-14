@@ -36,14 +36,14 @@ async function run() {
 // save a user data in 
 app.put('/user', async(req, res) =>{
 const user =req.body
+const query ={ email: user?.email}
 
-
-// const isExist = await usersCollection.findOne({email: email?.user})
-// if(isExist) return res.send(isExist)
+const isExist = await usersCollection.findOne(query)
+if(isExist) return res.send(isExist)
 
 
 const options ={upsert:true}
-const query ={ email: user?.email}
+
 const updateDoc ={
     $set:{
         ...user,
@@ -53,6 +53,15 @@ const updateDoc ={
 const result =await usersCollection.updateOne(query, updateDoc, options)
 res.send(result)
 })
+
+// get a user data by email
+app.get('/user/:email', async(req,res)=>{
+    const email =req.params.email
+    const result = await usersCollection.findOne({email})
+    res.send(result)
+})
+
+
 
 // get all users 
 
@@ -67,6 +76,36 @@ app.post ('/add-donation',async(req,res )=>{
     const donationData =req.body
     const result =await donationCollection.insertOne(donationData)
     res.send(result)
+})
+
+// get donation data
+app.get('/donation', async(req,res)=>{
+    const result = await donationCollection.find().toArray()
+    res.send(result)
+})
+// get all donation for donor
+app.get('/donation/:email', async (req, res) => {
+  const email = req.params.email;
+  const status = req.query.status;
+  const query = { email: email };
+
+  if (status) {
+      query.donationStatus = status;
+  }
+
+  const donations = await donationCollection.find(query).toArray();
+  res.send(donations);
+});
+
+// logout
+// clear token
+app.get('/logout', (req,res)=>{
+    res.clearCookie('token',{
+        httpOnly:true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict', maxAge:0
+    })
+    .send({success: true})
 })
 
 
