@@ -179,6 +179,34 @@ app.get('/donation/:email', async (req, res) => {
 });
 
 
+// Update donation status by ID
+app.put('/donations/:id/status', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    const query = { _id: new ObjectId(id) };
+    const updateDoc = { $set: { donationStatus: status } };
+    const result = await donationCollection.updateOne(query, updateDoc);
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// Delete donation by ID
+app.delete('/donations/:id', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const query = { _id: new ObjectId(id) };
+    const result = await donationCollection.deleteOne(query);
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
  // Blog management
 
         // add a blog
