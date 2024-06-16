@@ -135,11 +135,7 @@ if(isExist){
     return res.send(isExist)
   }
 }
-
-
-
 const options ={upsert:true}
-
 const updateDoc ={
     $set:{
         ...user,
@@ -153,17 +149,45 @@ res.send(result)
 
 
 // save a donation request
-app.post ('/add-donation',async(req,res )=>{
-    const donationData =req.body
-    const result =await donationCollection.insertOne(donationData)
-    res.send(result)
-})
+// Change from POST to PUT for updating or inserting a donation
+// save a donation request (insert or update)
+app.put('/add-donation', async (req, res) => {
+  const donationData = req.body;
+
+  try {
+    if (donationData._id) {
+      // Update existing donation
+      const query = { _id: new ObjectId(donationData._id) };
+      const updateDoc = {
+        $set: {
+          donationStatus: donationData.donationStatus,
+          donorName: donationData.donorName,
+          donorEmail: donationData.donorEmail,
+          // Add other fields as needed
+        },
+      };
+      const result = await donationCollection.updateOne(query, updateDoc);
+      res.send(result);
+    } else {
+      // Insert new donation (if _id is not provided, insert will be executed)
+      const result = await donationCollection.insertOne(donationData);
+      res.send(result);
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+
+
 
 // get donation data
 app.get('/donation', async(req,res)=>{
     const result = await donationCollection.find().toArray()
     res.send(result)
 })
+
 // get all donation for donor
 app.get('/donation/:email', async (req, res) => {
   const email = req.params.email;
@@ -176,6 +200,15 @@ app.get('/donation/:email', async (req, res) => {
 
   const donations = await donationCollection.find(query).toArray();
   res.send(donations);
+});
+
+
+// get donation info by id 
+app.get('/donations/:id', async (req, res) => {
+  const id = req.params.id;
+  const query = {_id: new ObjectId(id)}
+  const result = await donationCollection.findOne(query)
+  res.send(result)
 });
 
 
@@ -218,7 +251,7 @@ app.delete('/donations/:id', verifyToken, verifyAdmin, async (req, res) => {
       });
 
       // get all blogs
-      app.get('/blogs', verifyToken, verifyAdmin, async (req, res) => {
+      app.get('/blogs', verifyToken, async (req, res) => {
           const status = req.query.status;
           let query = {};
           if (status) {
