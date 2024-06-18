@@ -117,7 +117,7 @@ await fundingCollection.insertOne(newFunding);
 
 
     // User routes
-    app.get('/users', verifyToken, verifyAdmin, async (req, res) => {
+    app.get('/users', verifyToken, verifyAdmin , async (req, res) => {
       const result = await usersCollection.find().toArray();
       res.send(result);
     });
@@ -213,9 +213,29 @@ await fundingCollection.insertOne(newFunding);
     });
 
     app.get('/donation', async (req, res) => {
-      const result = await donationCollection.find().toArray();
-      res.send(result);
+      const { status, page = 1, limit = 10 } = req.query;
+      const query = {};
+      
+      if (status) {
+        query.donationStatus = status;
+      }
+    
+      try {
+        const donations = await donationCollection
+          .find(query)
+          .skip((page - 1) * limit)
+          .limit(parseInt(limit))
+          .toArray();
+          
+        const total = await donationCollection.countDocuments(query);
+    
+        res.status(200).json({ donations, total });
+      } catch (error) {
+        console.error('Failed to fetch donations', error);
+        res.status(500).json({ message: 'Failed to fetch donations', error });
+      }
     });
+    
 
     app.get('/donation/:email', async (req, res) => {
       const email = req.params.email;
