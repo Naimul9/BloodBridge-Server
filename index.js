@@ -73,6 +73,23 @@ async function run() {
       }
       next();
     };
+    // Verify donor middleware
+    const verifyDonor = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      const isDonor = user?.role === 'donor';
+      if (!isDonor) {
+        return res.status(403).send({ message: 'forbidden access' });
+      }
+      next();
+    };
+
+
+
+
+
+
 
     // Payment routes
     // Create Payment Intent
@@ -109,9 +126,25 @@ async function run() {
 
     // Get funding records
     app.get('/funding', async (req, res) => {
-      const funding = await fundingCollection.find().toArray();
-      res.json(funding);
+     
+      const result = await fundingCollection.aggregate([{
+$group:{
+  _id: null,
+  totalAmount:{
+    $sum: '$amount'
+  }
+}
+}]).toArray()
+
+const amount = result.length>0? result[0].totalAmount :0 
+res.send({amount})
     });
+
+    // get all funding 
+    app.get('/funding/all', async(req,res)=>{
+      const result = await fundingCollection.find().toArray()
+      res.send(result)
+    })
 
 
 
@@ -156,9 +189,30 @@ async function run() {
       res.send(result);
     });
 
-    app.put('/user', async (req, res) => {
+    // save a user data in 
+app.put('/user', async(req, res) =>{
+  const user =req.body
+  const query ={ email: user?.email , status:user?.status}
   
-      const userData = req.body;
+  const isExist = await usersCollection.findOne(query)
+  if(isExist)
+    
+      return res.send(isExist)
+  const options ={upsert:true}
+  
+  const updateDoc ={
+      $set:{
+          ...user,
+          timestamp: Date.now(),
+      },
+  }
+  const result =await usersCollection.updateOne(query, updateDoc, options)
+  res.send(result)
+  })
+
+  // update a user
+  app.put('/user/update', async(req, res) =>{
+    const userData = req.body;
       
       try {
         if (userData._id) {
@@ -166,14 +220,14 @@ async function run() {
           const options = { upsert: true };
           const updateDoc = {
             $set: {
-
+               
               timestamp: Date.now(),
               name: userData.name,
               email: userData.email,
               district: userData.district,
               upazila: userData.upazila,
               bloodGroup: userData.bloodGroup,
-              photo: userData.photo
+              photo: userData.photo 
             },
           };
           const result = await usersCollection.updateOne(query, updateDoc,options);
@@ -188,6 +242,11 @@ async function run() {
         res.status(500).send({ message: 'Internal server error' });
       }
     });
+
+
+  
+  
+  
     
     
 
@@ -282,7 +341,7 @@ async function run() {
     const id = req.params.id;
     const query = { _id: new ObjectId(id) };
     const result = await donationCollection.findOne(query);
-    res.send(result);
+    res.send(result); 
   });
 
   app.put('/donations/:id/status', verifyToken, async (req, res) => {
