@@ -173,6 +173,7 @@ async function run() {
               district: userData.district,
               upazila: userData.upazila,
               bloodGroup: userData.bloodGroup,
+              photo: userData.photo
             },
           };
           const result = await usersCollection.updateOne(query, updateDoc,options);
