@@ -11,7 +11,7 @@ const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
 // Middleware
 const corsOptions = {
-  origin: ['http://localhost:5173', 'http://localhost:5174'],
+  origin: ['http://localhost:5173', 'http://localhost:5174'  , 'https://blood-bridge-6249e.web.app'],
   credentials: true,
   optionSuccessStatus: 200,
 };
@@ -47,7 +47,7 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
     const usersCollection = client.db('BloodBridge').collection('users');
     const donationCollection = client.db('BloodBridge').collection('donation');
     const blogsCollection = client.db('BloodBridge').collection('blogs');
@@ -125,7 +125,7 @@ async function run() {
 
 
     // Get funding records
-    app.get('/funding', async (req, res) => {
+    app.get('/funding', verifyToken, async (req, res) => {
      
       const result = await fundingCollection.aggregate([{
 $group:{
@@ -449,8 +449,8 @@ app.put('/user', async(req, res) =>{
     }).send({ success: true });
   });
 
-  await client.db('admin').command({ ping: 1 });
-  console.log('Pinged your deployment. You successfully connected to MongoDB!');
+  // await client.db('admin').command({ ping: 1 });
+  // console.log('Pinged your deployment. You successfully connected to MongoDB!');
 } finally {
   // Ensures that the client will close when you finish/error
   // await client.close();
