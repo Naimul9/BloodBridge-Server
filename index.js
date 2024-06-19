@@ -78,7 +78,7 @@ async function run() {
     // Create Payment Intent
     app.post('/create-payment-intent', async (req, res) => {
       try {
-        const { price,} = req.body;
+        const { price, } = req.body;
         const paymentIntent = await stripe.paymentIntents.create({
           amount: price,
           currency: 'usd',
@@ -86,16 +86,16 @@ async function run() {
 
         });
 
-// Save funding record to MongoDB
-const newFunding = {
-  amount:price,
-  userName: req.body.userName,
-  date: req.body.date,
-  
-  
-};
+        // Save funding record to MongoDB
+        const newFunding = {
+          amount: price,
+          userName: req.body.userName,
+          date: req.body.date,
 
-await fundingCollection.insertOne(newFunding);
+
+        };
+
+        await fundingCollection.insertOne(newFunding);
 
 
         res.status(200).json({ clientSecret: paymentIntent.client_secret });
@@ -105,7 +105,7 @@ await fundingCollection.insertOne(newFunding);
       }
     });
 
-   
+
 
     // Get funding records
     app.get('/funding', async (req, res) => {
@@ -117,10 +117,12 @@ await fundingCollection.insertOne(newFunding);
 
 
     // User routes
-    app.get('/users', verifyToken, verifyAdmin , async (req, res) => {
+    app.get('/users',  async (req, res) => {
       const result = await usersCollection.find().toArray();
       res.send(result);
     });
+
+    
 
     app.get('/users/donor', verifyToken, async (req, res) => {
       try {
@@ -134,7 +136,7 @@ await fundingCollection.insertOne(newFunding);
 
     app.get('/user/:email', async (req, res) => {
       const email = req.params.email;
-      const result = await usersCollection.findOne({ email });
+       const result = await usersCollection.findOne({ email });
       res.send(result);
     });
 
@@ -155,227 +157,244 @@ await fundingCollection.insertOne(newFunding);
     });
 
     app.put('/user', async (req, res) => {
-      const user = req.body;
-      const query = { email: user?.email, status: user?.status };
-      const isExist = await usersCollection.findOne(query);
-      if (isExist) {
-        if (user.status === 'blocked') {
-          const result = await usersCollection.updateMany(query, {
-            $set: { status: user?.status },
-          });
-          return res.send(result);
+  
+      const userData = req.body;
+      
+      try {
+        if (userData._id) {
+          const query = { _id: new ObjectId(userData._id) };
+          const options = { upsert: true };
+          const updateDoc = {
+            $set: {
+
+              timestamp: Date.now(),
+              name: userData.name,
+              email: userData.email,
+              district: userData.district,
+              upazila: userData.upazila,
+              bloodGroup: userData.bloodGroup,
+            },
+          };
+          const result = await usersCollection.updateOne(query, updateDoc,options);
+          res.send(result);
         } else {
-          return res.send(isExist);
+          const result = await donationCollection.insertOne(userData);
+          res.send(result)
+          res.status(400).send({ message: 'Email is required' });
         }
+      } catch (error) {
+        console.error('Error updating user:', error);
+        res.status(500).send({ message: 'Internal server error' });
       }
-      const options = { upsert: true };
-      const updateDoc = {
-        $set: {
-          ...user,
-          timestamp: Date.now(),
-        },
-      };
-      const result = await usersCollection.updateOne(query, updateDoc, options);
-      res.send(result);
     });
+    
+    
 
     // Donation routes
     app.put('/add-donation', async (req, res) => {
-      const donationData = req.body;
-      try {
-        if (donationData._id) {
-          const query = { _id: new ObjectId(donationData._id) };
-          const updateDoc = {
-            $set: {
-              donationStatus: donationData.donationStatus,
-              donorName: donationData.donorName,
-              donorEmail: donationData.donorEmail,
-              recipientName: donationData.recipientName,
-              hospitalName: donationData.hospitalName,
-              recipientDistrict: donationData.recipientDistrict,
-              recipientUpazila: donationData.recipientUpazila,
-              fullAddress: donationData.fullAddress,
-              donationDate: donationData.donationDate,
-              donationTime: donationData.donationTime,
-              requestMessage: donationData.requestMessage,
-            },
-          };
-          const result = await donationCollection.updateOne(query, updateDoc);
-          res.send(result);
-        } else {
-          const result = await donationCollection.insertOne(donationData);
-          res.send(result);
-        }
-      } catch (error) {
-        console.error(error);
-        res.status(500).send('Internal Server Error');
-      }
-    });
-
-    app.get('/donation', async (req, res) => {
-      const { status, page = 1, limit = 10 } = req.query;
-      const query = {};
-      
-      if (status) {
-        query.donationStatus = status;
-      }
-    
-      try {
-        const donations = await donationCollection
-          .find(query)
-          .skip((page - 1) * limit)
-          .limit(parseInt(limit))
-          .toArray();
-          
-        const total = await donationCollection.countDocuments(query);
-    
-        res.status(200).json({ donations, total });
-      } catch (error) {
-        console.error('Failed to fetch donations', error);
-        res.status(500).json({ message: 'Failed to fetch donations', error });
-      }
-    });
-    
-
-    app.get('/donation/:email', async (req, res) => {
-      const email = req.params.email;
-      const { status, page = 1, limit = 10 } = req.query;
-      const query = { email: email };
-      if (status) {
-        query.donationStatus = status;
-      }
-      try {
-        const donations = await donationCollection
-          .find(query)
-          .skip((page - 1) * limit)
-          .limit(parseInt(limit))
-          .toArray();
-        const total = await donationCollection.countDocuments(query);
-        res.status(200).json({ donations, total });
-      } catch (error) {
-        console.error('Failed to fetch donations', error);
-        res.status(500).json({ message: 'Failed to fetch donations', error });
-      }
-    });
-
-    app.get('/donations/:id', async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
-      const result = await donationCollection.findOne(query);
-      res.send(result);
-    });
-
-    app.put('/donations/:id/status', verifyToken, async (req, res) => {
-      try {
-        const { id } = req.params;
-        const { status } = req.body;
-        const query = { _id: new ObjectId(id) };
-        const updateDoc = { $set: { donationStatus: status } };
+    const donationData = req.body;
+    try {
+      if (donationData._id) {
+        const query = { _id: new ObjectId(donationData._id) };
+        const updateDoc = {
+          $set: {
+            donationStatus: donationData.donationStatus,
+            donorName: donationData.donorName,
+            donorEmail: donationData.donorEmail,
+            recipientName: donationData.recipientName,
+            hospitalName: donationData.hospitalName,
+            recipientDistrict: donationData.recipientDistrict,
+            recipientUpazila: donationData.recipientUpazila,
+            fullAddress: donationData.fullAddress,
+            donationDate: donationData.donationDate,
+            donationTime: donationData.donationTime,
+            requestMessage: donationData.requestMessage,
+          },
+        };
         const result = await donationCollection.updateOne(query, updateDoc);
         res.send(result);
-      } catch (error) {
-        console.error(error);
-        res.status(500).send('Internal Server Error');
-      }
-    });
-
-    app.delete('/donations/:id', verifyToken, async (req, res) => {
-      try {
-        const { id } = req.params;
-        const query = { _id: new ObjectId(id) };
-        const result = await donationCollection.deleteOne(query);
+      } else {
+        const result = await donationCollection.insertOne(donationData);
         res.send(result);
-      } catch (error) {
-        console.error(error);
-        res.status(500).send('Internal Server Error');
       }
-    });
+    } catch (error) {
+      console.error(error);
+      res.status(500).send('Internal Server Error');
+    }
+  });
 
-    // Blog routes
-    app.post('/blogs', verifyToken, verifyAdmin, async (req, res) => {
-      const blog = req.body;
-      blog.status = 'draft';
-      const result = await blogsCollection.insertOne(blog);
-      res.send(result);
-    });
+  app.get('/donation', async (req, res) => {
+    const { status, page = 1, limit = 10 } = req.query;
+    const query = {};
 
-    app.get('/blogs', verifyToken, async (req, res) => {
-      const status = req.query.status;
-      let query = {};
-      if (status) {
-        query.status = status;
-      }
-      const result = await blogsCollection.find(query).toArray();
-      res.send(result);
-    });
+    if (status) {
+      query.donationStatus = status;
+    }
 
-    app.get('/blogs/:id', async (req, res) => {
-      const id = req.params.id;
+    try {
+      const donations = await donationCollection
+        .find(query)
+        .skip((page - 1) * limit)
+        .limit(parseInt(limit))
+        .toArray();
+
+      const total = await donationCollection.countDocuments(query);
+
+      res.status(200).json({ donations, total });
+    } catch (error) {
+      console.error('Failed to fetch donations', error);
+      res.status(500).json({ message: 'Failed to fetch donations', error });
+    }
+  });
+
+  // pending req
+  app.get('/donation/pending', async (req, res) => {
+    const result = await donationCollection.find().toArray();
+    res.send(result);
+  });
+
+
+
+
+  app.get('/donation/:email', async (req, res) => {
+    const email = req.params.email;
+    const { status, page = 1, limit = 10 } = req.query;
+    const query = { email: email };
+    if (status) {
+      query.donationStatus = status;
+    }
+    try {
+      const donations = await donationCollection
+        .find(query)
+        .skip((page - 1) * limit)
+        .limit(parseInt(limit))
+        .toArray();
+      const total = await donationCollection.countDocuments(query);
+      res.status(200).json({ donations, total });
+    } catch (error) {
+      console.error('Failed to fetch donations', error);
+      res.status(500).json({ message: 'Failed to fetch donations', error });
+    }
+  });
+
+  app.get('/donations/:id', async (req, res) => {
+    const id = req.params.id;
+    const query = { _id: new ObjectId(id) };
+    const result = await donationCollection.findOne(query);
+    res.send(result);
+  });
+
+  app.put('/donations/:id/status', verifyToken, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
       const query = { _id: new ObjectId(id) };
-      const result = await blogsCollection.findOne(query);
+      const updateDoc = { $set: { donationStatus: status } };
+      const result = await donationCollection.updateOne(query, updateDoc);
       res.send(result);
-    });
+    } catch (error) {
+      console.error(error);
+      res.status(500).send('Internal Server Error');
+    }
+  });
 
-    app.put('/blogs/:id', verifyToken, verifyAdmin, async (req, res) => {
-      const id = req.params.id;
-      const blog = req.body;
+  app.delete('/donations/:id', verifyToken, async (req, res) => {
+    try {
+      const { id } = req.params;
       const query = { _id: new ObjectId(id) };
-      const updateDoc = { $set: blog };
-      const result = await blogsCollection.updateOne(query, updateDoc);
+      const result = await donationCollection.deleteOne(query);
       res.send(result);
-    });
+    } catch (error) {
+      console.error(error);
+      res.status(500).send('Internal Server Error');
+    }
+  });
 
-    app.put('/blogs/:id/publish', verifyToken, verifyAdmin, async (req, res) => {
-      const id = req.params.id;
-      try {
-        const query = { _id: new ObjectId(id) };
-        const update = { $set: { status: 'published' } };
-        const result = await blogsCollection.updateOne(query, update);
-        res.send(result);
-      } catch (error) {
-        res.status(500).send({ message: 'Failed to publish blog', error });
-      }
-    });
+  // Blog routes
+  app.post('/blogs', verifyToken, verifyAdmin, async (req, res) => {
+    const blog = req.body;
+    blog.status = 'draft';
+    const result = await blogsCollection.insertOne(blog);
+    res.send(result);
+  });
 
-    app.put('/blogs/:id/unpublish', verifyToken, verifyAdmin, async (req, res) => {
-      const id = req.params.id;
-      try {
-        const query = { _id: new ObjectId(id) };
-        const update = { $set: { status: 'draft' } };
-        const result = await blogsCollection.updateOne(query, update);
-        res.send(result);
-      } catch (error) {
-        res.status(500).send({ message: 'Failed to unpublish blog', error });
-      }
-    });
+  app.get('/blogs', verifyToken, async (req, res) => {
+    const status = req.query.status;
+    let query = {};
+    if (status) {
+      query.status = status;
+    }
+    const result = await blogsCollection.find(query).toArray();
+    res.send(result);
+  });
 
-    app.delete('/blogs/:id', verifyToken, verifyAdmin, async (req, res) => {
-      const id = req.params.id;
-      try {
-        const query = { _id: new ObjectId(id) };
-        const result = await blogsCollection.deleteOne(query);
-        res.send(result);
-      } catch (error) {
-        res.status(500).send({ message: 'Failed to delete blog', error });
-      }
-    });
+  app.get('/blogs/:id', async (req, res) => {
+    const id = req.params.id;
+    const query = { _id: new ObjectId(id) };
+    const result = await blogsCollection.findOne(query);
+    res.send(result);
+  });
 
-    // Logout
-    app.get('/logout', (req, res) => {
-      res.clearCookie('token', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
-        maxAge: 0,
-      }).send({ success: true });
-    });
+  app.put('/blogs/:id', verifyToken, verifyAdmin, async (req, res) => {
+    const id = req.params.id;
+    const blog = req.body;
+    const query = { _id: new ObjectId(id) };
+    const updateDoc = { $set: blog };
+    const result = await blogsCollection.updateOne(query, updateDoc);
+    res.send(result);
+  });
 
-    await client.db('admin').command({ ping: 1 });
-    console.log('Pinged your deployment. You successfully connected to MongoDB!');
-  } finally {
-    // Ensures that the client will close when you finish/error
-    // await client.close();
-  }
+  app.put('/blogs/:id/publish', verifyToken, verifyAdmin, async (req, res) => {
+    const id = req.params.id;
+    try {
+      const query = { _id: new ObjectId(id) };
+      const update = { $set: { status: 'published' } };
+      const result = await blogsCollection.updateOne(query, update);
+      res.send(result);
+    } catch (error) {
+      res.status(500).send({ message: 'Failed to publish blog', error });
+    }
+  });
+
+  app.put('/blogs/:id/unpublish', verifyToken, verifyAdmin, async (req, res) => {
+    const id = req.params.id;
+    try {
+      const query = { _id: new ObjectId(id) };
+      const update = { $set: { status: 'draft' } };
+      const result = await blogsCollection.updateOne(query, update);
+      res.send(result);
+    } catch (error) {
+      res.status(500).send({ message: 'Failed to unpublish blog', error });
+    }
+  });
+
+  app.delete('/blogs/:id', verifyToken, verifyAdmin, async (req, res) => {
+    const id = req.params.id;
+    try {
+      const query = { _id: new ObjectId(id) };
+      const result = await blogsCollection.deleteOne(query);
+      res.send(result);
+    } catch (error) {
+      res.status(500).send({ message: 'Failed to delete blog', error });
+    }
+  });
+
+  // Logout
+  app.get('/logout', (req, res) => {
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+      maxAge: 0,
+    }).send({ success: true });
+  });
+
+  await client.db('admin').command({ ping: 1 });
+  console.log('Pinged your deployment. You successfully connected to MongoDB!');
+} finally {
+  // Ensures that the client will close when you finish/error
+  // await client.close();
+}
 }
 run().catch(console.dir);
 
